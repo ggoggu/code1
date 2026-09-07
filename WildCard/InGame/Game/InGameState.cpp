@@ -9,6 +9,8 @@
 #include "InGameController.h"
 #include "UnitBase.h"
 #include "WildCard.h"
+#include "TileMapMaker.h"
+#include "TileMap.h"
 
 AInGameState::AInGameState()
 {
@@ -34,17 +36,15 @@ void AInGameState::BeginPlay()
 
 void AInGameState::InitMap()
 {
-	/*
 	if (MapMakerClass)
 	{
-		WILD_SIMPLE(Warning);
 		FVector Location(100.0f, 200.0f, 5000.0f);
 		FRotator Rotation(0.0f, 0.0f, 0.0f);
 		FActorSpawnParameters SpawnParams;
 
 		SpawnParams.Owner = this;
 
-		MapMaker = GetWorld()->SpawnActor<AWildMapMaker>(
+		MapMaker = GetWorld()->SpawnActor<ATileMapMaker>(
 			MapMakerClass,
 			Location,
 			Rotation,
@@ -55,6 +55,9 @@ void AInGameState::InitMap()
 		{
 			WILD_UELOG(Error, TEXT("Map maker spawn error"));
 		}
+		else
+			WILD_UELOG(Warning, TEXT("Map maker spawn"));
+
 	}
 
 	UE_LOG(LogTemp, Warning, TEXT("Actor Location: %s"),
@@ -62,27 +65,25 @@ void AInGameState::InitMap()
 
 	UE_LOG(LogTemp, Warning, TEXT("Root Location: %s"),
 		*MapMaker->GetRootComponent()->GetComponentLocation().ToString());
-		*/
 }
 
 void AInGameState::CreateMapTile()
 {
-/*
+
 	UE_LOG(LogTemp, Warning, TEXT("HasAuthority: %d"), HasAuthority());
 	UE_LOG(LogTemp, Warning, TEXT("GameState Addr: %p"), this);
-	UE_LOG(LogTemp, Warning, TEXT("MapMaker Addr: %p"), MapMaker);
+	UE_LOG(LogTemp, Warning, TEXT("MapMaker Addr: %p"), MapMaker.Get());
 
 	FVector Location(0.0f, 0.0f, 0.0f);
 	if (MapMaker)
 	{
 		Map = MapMaker->CreateMap(Location);
-		WILD_UELOG(Display, TEXT("Map create"));
+		UE_LOG(LogTemp, Display, TEXT("Map create"));
 	}
 	else
 	{
-		WILD_UELOG(Error, TEXT("Map create Error"));
+		UE_LOG(LogTemp, Error, TEXT("Map create Error"));
 	}
-	*/
 }
 
 void AInGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -94,12 +95,12 @@ void AInGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLife
 	DOREPLIFETIME(AInGameState, CurrentPriorityPlayerID);
 	DOREPLIFETIME(AInGameState, PhaseRemainTime);
 	DOREPLIFETIME(AInGameState, CurrentChainPromptID);
-	//DOREPLIFETIME(AInGameState, MapMaker);
+	DOREPLIFETIME(AInGameState, MapMaker);
 	DOREPLIFETIME(AInGameState, UnitsArray);
 	DOREPLIFETIME(AInGameState, TilesArray);
 }
 
-void AInGameState::HandleUnitSpawned(TWeakObjectPtr<ACardBase> InSpawnedUnit, TWeakObjectPtr<ATile> InSpawnedTile)
+void AInGameState::HandleUnitSpawned(TWeakObjectPtr<AUnitBase> InSpawnedUnit, TWeakObjectPtr<ATile> InSpawnedTile)
 {
 	WILD_SIMPLE(Warning);
 	UnitsArray.AddUnique(InSpawnedUnit);
@@ -108,78 +109,93 @@ void AInGameState::HandleUnitSpawned(TWeakObjectPtr<ACardBase> InSpawnedUnit, TW
 	for (APlayerState* PS : PlayerArray)
 	{
 		AInGamePlayerState* MyPS = Cast<AInGamePlayerState>(PS);
-		/*
-		WILD_UELOG(Warning, TEXT("PlayerCount : %d , OwnerID : %d"), MyPS->PlayerCount, InSpawnedUnit->GetOwnerId())
+
+		UE_LOG(LogTemp, Warning, TEXT("PlayerCount : %d , OwnerID : %d"), MyPS->PlayerCount, InSpawnedUnit->GetOwnerId());
 		if (MyPS && MyPS->PlayerCount == InSpawnedUnit->GetOwnerId())
 		{
 			//  일치하는 PlayerState를 찾았으면 타일 추가
 			
-			for (ATile* InTile : SelectCanSpawnUnitTiles(InSpawnedTile))
+			for (ATile* InTile : SelectCanSpawnUnitTiles(InSpawnedTile, 1))
 			{
-				WILD_UELOG(Warning, TEXT("%s"), *InTile->GetName());
+				UE_LOG(LogTemp, Warning, TEXT("%s"), *InTile->GetName());
 				MyPS->MySpawnableTiles.AddUnique(InTile);
 			}
 			break;
 		}
-		*/
+		
 	}
 	
 }
 
-void AInGameState::HandleUnitDestroyed(TWeakObjectPtr<ACardBase> InDestroyedUnit, TWeakObjectPtr<ATile> InDestroyedTile)
+void AInGameState::HandleUnitDestroyed(TWeakObjectPtr<AUnitBase> InDestroyedUnit, TWeakObjectPtr<ATile> InDestroyedTile)
 {
 	UnitsArray.Remove(InDestroyedUnit);
 	TilesArray.Remove(InDestroyedTile);
 
 	for (APlayerState* PS : PlayerArray)
 	{
-		/*
+		
 		AInGamePlayerState* MyPS = Cast<AInGamePlayerState>(PS);
 		if (MyPS && MyPS->PlayerCount == InDestroyedUnit->GetOwnerId())
 		{
 			// 2. 일치하는 PlayerState를 찾았으면 타일 추가
-			for (ATile* InTile : SelectCanSpawnUnitTiles(InDestroyedTile))
+			for (ATile* InTile : SelectCanSpawnUnitTiles(InDestroyedTile, 1))
 			{
 				MyPS->MySpawnableTiles.Emplace(InTile);
 			}
 			break;
 		}
-		*/
+		
 	}
 }
 
-void AInGameState::FindCanSpawnUnitTiles()
+bool AInGameState::Server_FindCanMoveUnitTiles_Validate(ATile* InTile, AInGameController* InPlayer)
 {
-	/*
-	AInGameController* MYPC = Cast<AInGameController>(GetWorld()->GetFirstLocalPlayerFromController());
-	int32 PCID = MYPC->GetPlayerState<AInGamePlayerState>()->PlayerCount;
+	return true;
+}
 
-	TArray<ATile*> FoundTiles;
-	TArray<AActor*> FoundActors;
+void AInGameState::Server_FindCanMoveUnitTiles_Implementation(ATile* InTile, AInGameController* InPlayer)
+{
+	TArray<ATile*> CanMoveTiles = SelectCanSpawnUnitTiles(InTile, 1);
+	TSet<TWeakObjectPtr<ATile>> TileSet(TilesArray);
 
-	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ATile::StaticClass(), FoundActors);
+	CanMoveTiles.RemoveAll([&](ATile* Tile) {
+		return TileSet.Contains(Tile);
+		});
 
-	for (AActor* Actor : FoundActors)
+	//InPlayer->Client_ChangeMoveableTiles(CanMoveTiles);
+}
+
+void AInGameState::Server_FindCanCombatUnitTiles_Implementation(ATile* InTile, AInGameController* InPlayer)
+{
+	TArray<ATile*> CombatTiles = SelectCanSpawnUnitTiles(InTile, 1);
+	TArray<ATile*> CanCombatTiles;
+	TSet<TWeakObjectPtr<ATile>> TileSet(TilesArray);
+
+	int32 PSID = InPlayer->GetPlayerState<AInGamePlayerState>()->PlayerCount;
+
+	for (ATile* Tile : CombatTiles)
 	{
-		ATile* Tile = Cast<ATile>(Actor);
-		if (Tile)
+		if (TileSet.Contains(Tile) && (Tile->GetUnit()->GetOwnerId() != PSID))
 		{
-			if (PCID == (Tile->GetUnit()->GetOwnerId()))
-			{
-				FoundTiles.Add(Tile);
-			}
+			CanCombatTiles.AddUnique(Tile);
 		}
 	}
 
-	//#. 내가 건드릴수 있는 unit의 위치 반환
-	//SelectCanSpawnUnitTiles(FoundTiles);
-*/
+	//InPlayer->Client_ChangeCombatableTiles(CanCombatTiles);
+}
+
+bool AInGameState::Server_FindCanCombatUnitTiles_Validate(ATile* InTile, AInGameController* InPlayer)
+{
+	return true;
 }
 
 void AInGameState::OnRep_MapMaker()
 {
 	WILD_UELOG(Error, TEXT("Map Maker Spawn"));
 }
+
+
 
 void AInGameState::SetCurrentPhase(EWildCardPhase NewPhase)
 {
@@ -210,14 +226,14 @@ void AInGameState::UnregisterUnit(AUnitBase* DeadUnit)
 	}
 }
 
-TArray<ATile*> AInGameState::SelectCanSpawnUnitTiles(TWeakObjectPtr<ATile> InSpawnedTile)
+TArray<ATile*> AInGameState::SelectCanSpawnUnitTiles(TWeakObjectPtr<ATile> InSpawnedTile, int32 InDistance)
 {
 	
 	//#. 소환가능한 타일의 색깔 및 정보 변경
 	TArray<ATile*> CanSpawnTiles;
 	//#. 해당 Actor기준 거리가 1인 타일만을 찾아
 
-	//CanSpawnTiles.Append(Map->GetTilesAtDistance(InSpawnedTile, 1));
+	CanSpawnTiles.Append(Map->GetTilesAtDistance(InSpawnedTile, InDistance));
 
 	return CanSpawnTiles;
 	

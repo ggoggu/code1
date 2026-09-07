@@ -24,8 +24,8 @@ public:
 	virtual void ExecuteEffect_Implementation(const FWildActionData& ActionData) PURE_VIRTUAL(UWildCardEffectBase::ExecuteEffect_Implementation, );
 
 	UFUNCTION(BlueprintNativeEvent, Category = "Card Effect")
-	void ExecuteEffectTest(const FEffectData& InEffectData, ACardBase* InTarget, ACardBase* InSource, APlayerController* InPlayerController);
-	virtual void ExecuteEffectTest_Implementation(const FEffectData& InEffectData, ACardBase* InTarget, ACardBase* InSource, APlayerController* InPlayerController) PURE_VIRTUAL(UWildCardEffectBase::ExecuteEffect_Implementation, );
+	void ExecuteEffectTest(const FEffectData& InEffectData, UCardBase* InTarget, UCardBase* InSource, APlayerController* InPlayerController);
+	virtual void ExecuteEffectTest_Implementation(const FEffectData& InEffectData, UCardBase* InTarget, UCardBase* InSource, APlayerController* InPlayerController) PURE_VIRTUAL(UWildCardEffectBase::ExecuteEffect_Implementation, );
 	
 	virtual UWorld* GetWorld() const override;
 	

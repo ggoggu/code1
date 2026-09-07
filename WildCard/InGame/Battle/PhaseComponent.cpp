@@ -205,10 +205,16 @@ void UPhaseComponent::ProcessPlayPublicAction(APlayerController* PC, const FWild
 
 	if (ActionData.ActionType != EWildActionType::None && ActionData.CardInstanceID != -1)
 	{
-		class ACardBase* PlayedCard = PS->FindCardInstanceByID(ActionData.CardInstanceID);
+		if (!PS->IsCardInHand(ActionData.CardInstanceID))
+		{
+			UE_LOG(LogWildPhase, Warning, TEXT("[보안] Player %d 가 손패에 없는 카드(InstanceID: %d)를 플레이하려 했습니다."), CallerID, ActionData.CardInstanceID);
+			return;
+		}
+
+		class UCardBase* PlayedCard = PS->FindCardInstanceByID(ActionData.CardInstanceID);
 		if (!PlayedCard)
 		{
-			UE_LOG(LogWildPhase, Warning, TEXT("[보안] Player %d 가 소유하지 않은 카드를 플레이하려 했습니다."), CallerID);
+			UE_LOG(LogWildPhase, Warning, TEXT("[보안] Player %d 의 카드 인스턴스를 찾을 수 없습니다."), CallerID);
 			return;
 		}
 
@@ -372,12 +378,36 @@ void UPhaseComponent::ProcessPrivateActionReady(APlayerController* PC, const FWi
 		return;
 	}
 
+	FWildActionData ValidatedAction = ActionData;
+
+	// [보안 검증] 유닛 소환/주문 등 카드 기반 메인 액션인 경우 손패 소유 및 마나 검증
+	if (ValidatedAction.ActionType != EWildActionType::None && ValidatedAction.CardInstanceID != -1)
+	{
+		if (!PS->IsCardInHand(ValidatedAction.CardInstanceID))
+		{
+			UE_LOG(LogWildPhase, Warning, TEXT("[보안] Player %d 가 손패에 없는 카드(InstanceID: %d)로 메인 행동을 시도했습니다. None으로 처리합니다."), PS->GetPlayerId(), ValidatedAction.CardInstanceID);
+			ValidatedAction.ActionType = EWildActionType::None;
+			ValidatedAction.CardInstanceID = -1;
+		}
+		else
+		{
+			class UCardBase* Card = PS->FindCardInstanceByID(ValidatedAction.CardInstanceID);
+			UPlayerStatComponent* Stat = PS->GetStatComponent();
+			if (!Card || (Stat && Stat->Mana < Card->CurrentManaCost))
+			{
+				UE_LOG(LogWildPhase, Warning, TEXT("[보안] Player %d 의 마나가 부족하여 메인 행동 카드를 사용할 수 없습니다. None으로 처리합니다."), PS->GetPlayerId());
+				ValidatedAction.ActionType = EWildActionType::None;
+				ValidatedAction.CardInstanceID = -1;
+			}
+		}
+	}
+
 	if (!PS->bIsActionReady)
 	{
-		PS->SetPendingMainAction(ActionData);
+		PS->SetPendingMainAction(ValidatedAction);
 		ActionReadyCount++;
 		UE_LOG(LogWildPhase, Log, TEXT("[Server] Player %d 메인 행동 결정 완료. (Type: %d, 현재 %d/2)"), 
-			PS->GetPlayerId(), (int32)ActionData.ActionType, ActionReadyCount);
+			PS->GetPlayerId(), (int32)ValidatedAction.ActionType, ActionReadyCount);
 	}
 	
 	// 양쪽 모두 메인 행동 결정을 완료한 시점

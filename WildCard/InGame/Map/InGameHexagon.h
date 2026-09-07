@@ -28,11 +28,14 @@ struct FAxial
 {
 	GENERATED_BODY()
 
-	int Q;
-	int R;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	int32 Q;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	int32 R;
 
 	FAxial() : Q(0), R(0){}
-	FAxial(int q, int r) : Q(q), R(r) {}
+	FAxial(int32 q, int32 r) : Q(q), R(r) {}
 	FAxial(const FCube& Cube);
 	FCube ToCube() const;
 	// flat-top , array-to-array �϶� index

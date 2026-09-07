@@ -41,6 +41,9 @@ protected:
 	UPROPERTY(Replicated)
 	int32 ActionCount;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Unit")
+	TSubclassOf<AUnitBase> UnitClass;
+
 	void ProcessMiddlePhase();
 
 	void ExecuteMainActionsSimultaneously();

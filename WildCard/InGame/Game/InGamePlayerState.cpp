@@ -12,7 +12,7 @@
 AInGamePlayerState::AInGamePlayerState()
 {
 	bReplicates = true;
-	NetUpdateFrequency = 10.0f;
+	SetNetUpdateFrequency(10.0f);
 
 	StatComponent = CreateDefaultSubobject<UPlayerStatComponent>(TEXT("StatComponent"));
 	
@@ -74,10 +74,22 @@ void AInGamePlayerState::Server_SubmitMulligan_Implementation(const TArray<int32
 		return;
 	}
 
-	// [수정] 교체할 카드 ID 목록을 컴포넌트에 안전하게 캐싱
+	// [보안 강화] 요청된 카드들이 실제 플레이어의 ServerHand에 존재하는지 서버 검증
+	TArray<int32> ValidatedCardsToSwap;
 	if (CardComponent)
 	{
-		CardComponent->CachedMulliganCards = CardsToSwap;
+		for (int32 CardID : CardsToSwap)
+		{
+			if (CardComponent->IsCardInHand(CardID))
+			{
+				ValidatedCardsToSwap.AddUnique(CardID);
+			}
+			else
+			{
+				UE_LOG(LogTemp, Warning, TEXT("[Server] 보안: Player %d 가 손패에 없는 카드(InstanceID: %d)를 멀리건 교체 요청했습니다. 무시됩니다."), GetPlayerId(), CardID);
+			}
+		}
+		CardComponent->CachedMulliganCards = ValidatedCardsToSwap;
 	}
 
 	AInGameController* PC = Cast<AInGameController>(GetPlayerController());
@@ -85,7 +97,7 @@ void AInGamePlayerState::Server_SubmitMulligan_Implementation(const TArray<int32
 	
 	if (PC && GameMode && GameMode->PhaseComponent)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[Server] Player %d 멀리건 데이터 캐싱 완료. 레디 상태로 전환합니다."), GetPlayerId());
+		UE_LOG(LogTemp, Warning, TEXT("[Server] Player %d 멀리건 데이터 캐싱 완료 (%d장). 레디 상태로 전환합니다."), GetPlayerId(), ValidatedCardsToSwap.Num());
 		GameMode->PhaseComponent->ProcessPlayerMulliganReady(PC);
 	}
 	else
@@ -98,6 +110,10 @@ bool AInGamePlayerState::Server_SubmitMulligan_Validate(const TArray<int32>& Car
 {
 	AInGameState* GameState = GetWorld()->GetGameState<AInGameState>();
 	if (GameState && GameState->GetCurrentMatchState() != EWildMatchState::Mulligan)
+	{
+		return false;
+	}
+	if (CardsToSwap.Num() > 5)
 	{
 		return false;
 	}

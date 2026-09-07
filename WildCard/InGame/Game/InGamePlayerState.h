@@ -53,7 +53,9 @@ public:
 	inline void DrawCard(FName CardIDToDraw, int32 BaseMana) { if (CardComponent) CardComponent->DrawCard(CardIDToDraw, BaseMana); }
 	inline void Debug_GiveDummyStartingHand() { if (CardComponent) CardComponent->Debug_GiveDummyStartingHand(); }
 	inline void CreateTestDeck() { if (CardComponent) CardComponent->CreateTestDeck(); }
-	inline class ACardBase* FindCardInstanceByID(int32 InInstanceID) const { return CardComponent ? CardComponent->FindCardInstanceByID(InInstanceID) : nullptr; }
+	inline class UCardBase* FindCardInstanceByID(int32 InInstanceID) const { return CardComponent ? CardComponent->FindCardInstanceByID(InInstanceID) : nullptr; }
+	inline bool IsCardInHand(int32 InInstanceID) const { return CardComponent ? CardComponent->IsCardInHand(InInstanceID) : false; }
+	inline bool RemoveCardFromHand(int32 InInstanceID, ECardZone DestinationZone = ECardZone::EXILE) { return CardComponent ? CardComponent->RemoveCardFromHand(InInstanceID, DestinationZone) : false; }
 	inline void SyncHandDataToDisplay() { if (CardComponent) CardComponent->SyncHandDataToDisplay(); }
 	inline void ExecuteMulliganSwap() { if (CardComponent) CardComponent->ExecuteMulliganSwap(); }
 	inline void ClearCachedMulliganCards() { if (CardComponent) CardComponent->CachedMulliganCards.Empty(); }

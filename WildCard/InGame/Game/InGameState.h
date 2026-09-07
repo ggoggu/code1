@@ -1,22 +1,20 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/GameState.h"
+#include "InGameController.h"
 #include "InGameState.generated.h"
 
-/**
- * 
- */
-
 enum class EWildCardPhase : uint8;
-class AWildMapMaker;
+enum class EWildMatchState : uint8;
+class ATileMapMaker;
 class AUnitBase;
 class UChainComponent;
-class ACardBase;
-class AWildMap;
+class ATileMap;
 class ATile;
+class AInGameController;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTimerChangedDelegate, int32, RemainTime);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnTurnStartedDelegate);
@@ -40,32 +38,33 @@ public:
 
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
-	void HandleUnitSpawned(TWeakObjectPtr<ACardBase> InSpawnedUnit, TWeakObjectPtr<ATile> InSpawnedTile);
-	void HandleUnitDestroyed(TWeakObjectPtr<ACardBase> InDestroyedUnit, TWeakObjectPtr<ATile> InDestroyedTile);
-
-	//Client
-	void FindCanSpawnUnitTiles();
+	void HandleUnitSpawned(TWeakObjectPtr<AUnitBase> InSpawnedUnit, TWeakObjectPtr<ATile> InSpawnedTile);
+	void HandleUnitDestroyed(TWeakObjectPtr<AUnitBase> InDestroyedUnit, TWeakObjectPtr<ATile> InDestroyedTile);
 
 private:
 	UFUNCTION()
 	void OnRep_MapMaker();
 
 public:
+	UPROPERTY(EditDefaultsOnly, Category = "Map")
+	TSubclassOf<ATileMapMaker> MapMakerClass;
 
-	//UPROPERTY(EditDefaultsOnly, Category = "Map")
-	//TSubclassOf<AWildMapMaker> MapMakerClass;
+	UFUNCTION(Server, Reliable, WithValidation)
+	void Server_FindCanMoveUnitTiles(ATile* InTile, AInGameController* InPlayer);
+
+	UFUNCTION(Server, Reliable, WithValidation)
+	void Server_FindCanCombatUnitTiles(ATile* InTile, AInGameController* InPlayer);
 
 private:
+	UPROPERTY(ReplicatedUsing = OnRep_MapMaker)
+	TObjectPtr<ATileMapMaker> MapMaker;
 
-	//UPROPERTY(ReplicatedUsing = OnRep_MapMaker)
-	//AWildMapMaker* MapMaker;
-
-	//UPROPERTY()
-	//AWildMap* Map;
+	UPROPERTY()
+	TObjectPtr<ATileMap> Map;
 
 	//#. Test용 array
 	UPROPERTY(ReplicatedUsing = OnRep_UnitArrayChanged)
-	TArray<TWeakObjectPtr<ACardBase>> UnitsArray;
+	TArray<TWeakObjectPtr<AUnitBase>> UnitsArray;
 
 	UPROPERTY(ReplicatedUsing = OnRep_TileArrayChanged)
 	TArray<TWeakObjectPtr<ATile>> TilesArray;
@@ -98,12 +97,11 @@ public:
 	void UnregisterUnit(AUnitBase* DeadUnit);
 	/*			*/
 
-	TArray<ATile*> SelectCanSpawnUnitTiles(TWeakObjectPtr<ATile> InSpawnedTile);
+	TArray<ATile*> SelectCanSpawnUnitTiles(TWeakObjectPtr<ATile> InSpawnedTile, int32 InDistance);
 
-	TArray<TWeakObjectPtr<ATile>> GetTilesArray() { return TilesArray; };
-	
+	TArray<TWeakObjectPtr<ATile>> GetTilesArray() { return TilesArray; }
 
-	EWildCardPhase GetCurrentPhase() const { return CurrentPhase; };
+	EWildCardPhase GetCurrentPhase() const { return CurrentPhase; }
 	void SetCurrentPhase(EWildCardPhase NewPhase);
 
 	int32 GetPhaseRemainTime() const { return PhaseRemainTime; }
@@ -112,7 +110,7 @@ public:
 	int32 GetCurrentPriorityPlayerID() const { return CurrentPriorityPlayerID; }
 	void SetCurrentPriorityPlayerID(int32 NewPlayerID);
 
-	int GetCurrentChainPromptID() const { return CurrentChainPromptID; }
+	int32 GetCurrentChainPromptID() const { return CurrentChainPromptID; }
 	void SetCurrentChainPromptID(int32 InPlayerID);
 
 	EWildMatchState GetCurrentMatchState() const { return CurrentMatchState; }
@@ -136,7 +134,6 @@ protected:
 	
 	UPROPERTY(ReplicatedUsing = OnRep_ChainPromptPlayerChanged, BlueprintReadOnly, Category = "WildCard|State")
 	int32 CurrentChainPromptID;
-	
 
 	UFUNCTION() void OnRep_CurrentMatchState();
 	UFUNCTION() void OnRep_CurrentPhase();
@@ -144,12 +141,10 @@ protected:
 	UFUNCTION() void OnRep_PhaseRemainTime();
 	UFUNCTION() void OnRep_ChainPromptPlayerChanged();
 
-	
 	//#. Test용, UnitArray 변경 감지용
 	UFUNCTION()
 	void OnRep_UnitArrayChanged();
 
 	UFUNCTION()
 	void OnRep_TileArrayChanged();
-	
 };

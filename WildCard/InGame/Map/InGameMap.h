@@ -9,7 +9,7 @@
 
 class ATile;
 struct FAxial;
-class ACardBase;
+class UCardBase;
 
 UCLASS()
 class WILDCARD_API AInGameMap : public AActor

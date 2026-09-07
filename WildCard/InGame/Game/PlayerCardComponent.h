@@ -7,7 +7,7 @@
 #include "BattleData.h"
 #include "PlayerCardComponent.generated.h"
 
-class ACardBase;
+class UCardBase;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnHandCountChangedDelegate, int32, NewHandCount);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnMyHandUpdatedDelegate, const TArray<FWildCardDisplayData>&, HandData);
@@ -32,16 +32,18 @@ public:
 	void Debug_GiveDummyStartingHand();
 	void CreateTestDeck();
 	void ShuffleDeck();
-	ACardBase* GenerateCardInstance(FName CardRowName);
-	ACardBase* FindCardInstanceByID(int32 InInstanceID) const;
+	UCardBase* GenerateCardInstance(FName CardRowName);
+	UCardBase* FindCardInstanceByID(int32 InInstanceID) const;
+	bool IsCardInHand(int32 InInstanceID) const;
+	bool RemoveCardFromHand(int32 InInstanceID, ECardZone DestinationZone = ECardZone::EXILE);
 	void SyncHandDataToDisplay();
 	void ExecuteMulliganSwap();
 
 	// 카드 구역(Zone) 데이터
-	UPROPERTY(VisibleAnywhere, Category = "Cards|Server") TArray<TObjectPtr<ACardBase>> ServerDeck;
-	UPROPERTY(VisibleAnywhere, Category = "Cards|Server") TArray<TObjectPtr<ACardBase>> ServerHand;
-	UPROPERTY(VisibleAnywhere, Category = "Cards|Server") TArray<TObjectPtr<ACardBase>> ServerObliterate;
-	UPROPERTY(VisibleAnywhere, Category = "Cards|Server") TArray<TObjectPtr<ACardBase>> ServerExile;
+	UPROPERTY(VisibleAnywhere, Category = "Cards|Server") TArray<TObjectPtr<UCardBase>> ServerDeck;
+	UPROPERTY(VisibleAnywhere, Category = "Cards|Server") TArray<TObjectPtr<UCardBase>> ServerHand;
+	UPROPERTY(VisibleAnywhere, Category = "Cards|Server") TArray<TObjectPtr<UCardBase>> ServerObliterate;
+	UPROPERTY(VisibleAnywhere, Category = "Cards|Server") TArray<TObjectPtr<UCardBase>> ServerExile;
 
 	UPROPERTY()
 	FRandomStream DeckRandomStream;

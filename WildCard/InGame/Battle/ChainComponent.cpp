@@ -9,7 +9,10 @@
 #include "InGamePlayerState.h"
 #include "InGameMode.h"
 #include "WildCard.h"
+#include "Tile.h"
 #include "CardBase.h"
+#include "BattleData.h"
+#include "PlayerStatComponent.h"
 
 
 // Sets default values for this component's properties
@@ -18,6 +21,15 @@ UChainComponent::UChainComponent()
 	PrimaryComponentTick.bCanEverTick = false;
 	SetIsReplicatedByDefault(true);
 	ActionCount = 0;
+
+	static ConstructorHelpers::FClassFinder<AUnitBase> UnitBP(
+		TEXT("/Game/BP/BP_UnitBase.BP_UnitBase_C")
+	);
+
+	if (UnitBP.Succeeded())
+	{
+		UnitClass = UnitBP.Class;
+	}
 }
 
 
@@ -292,11 +304,46 @@ void UChainComponent::ExecuteAction(const FWildActionData& ActionData)
 
 	if (ActionData.ActionType == EWildActionType::SummonUnit)
 	{
-		ACardBase* SummonCard = ActivatorPS->FindCardInstanceByID(ActionData.CardInstanceID);
+		UCardBase* SummonCard = ActivatorPS->FindCardInstanceByID(ActionData.CardInstanceID);
 		if (SummonCard)
 		{
-			// Ensure TargetGridPos is somewhat validated (e.g. not off-grid)
-			UE_LOG(LogWildChain, Log, TEXT("[Server] %s 유닛을 %s 좌표에 소환합니다."), *SummonCard->CardID.ToString(), *ActionData.TargetGridPos.ToString());
+			// 마나 소모 및 손패에서 제거 (구역 이동: Hand -> Battlefield/Exile)
+			if (ActivatorPS->IsCardInHand(ActionData.CardInstanceID))
+			{
+				if (UPlayerStatComponent* Stat = ActivatorPS->GetStatComponent())
+				{
+					Stat->ConsumeMana(SummonCard->CurrentManaCost);
+				}
+				ActivatorPS->RemoveCardFromHand(ActionData.CardInstanceID, ECardZone::EXILE);
+			}
+
+			UE_LOG(LogWildChain, Log, TEXT("[Server] %s 유닛을 %s 좌표에 소환합니다. (CardInstanceID: %d)"), 
+				*SummonCard->CardID.ToString(), *ActionData.TargetGridPos.ToString(), ActionData.CardInstanceID);
+
+			//TODO : 예시용 카드 데이터 - FCardData, FUnitCardData, BattleData등 실제 로직에 맞게 수정필요
+			FCardData NewUnitCardData(SummonCard->CurrentAttack, SummonCard->CurrentHealth);
+			if (IsValid(ActionData.TargetTile))
+			{
+				ActionData.TargetTile->SpawnUnit(NewUnitCardData, UnitClass, ActionData.PlayerID);
+			}
+			else
+			{
+				UE_LOG(LogWildChain, Error, TEXT("[Server] 소환 대상 타일(TargetTile)이 유효하지 않습니다!"));
+			}
+
+		}
+	}
+	else if (ActionData.ActionType == EWildActionType::CastSpell)
+	{
+		UCardBase* SpellCard = ActivatorPS->FindCardInstanceByID(ActionData.CardInstanceID);
+		if (SpellCard)
+		{
+			if (ActivatorPS->IsCardInHand(ActionData.CardInstanceID))
+			{
+				ActivatorPS->RemoveCardFromHand(ActionData.CardInstanceID, ECardZone::EXILE);
+			}
+			UE_LOG(LogWildChain, Log, TEXT("[Server] %s 주문을 시전합니다. (CardInstanceID: %d)"), 
+				*SpellCard->CardID.ToString(), ActionData.CardInstanceID);
 		}
 	}
 	else if (ActionData.ActionType == EWildActionType::UnitMove)

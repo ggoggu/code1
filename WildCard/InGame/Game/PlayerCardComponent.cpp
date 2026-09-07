@@ -51,14 +51,14 @@ void UPlayerCardComponent::ExecuteMulliganSwap()
 		return;
 	}
 
-	TArray<ACardBase*> CardsToReturn;
+	TArray<UCardBase*> CardsToReturn;
 	FString DroppedCardsLog = TEXT(""); 
 	FString NewCardsLog = TEXT("");     
 
 	// 1. 내 손패를 역순으로 순회하며 교체 대상 카드를 덱으로 반환 준비
 	for (int32 i = ServerHand.Num() - 1; i >= 0; --i)
 	{
-		ACardBase* Card = ServerHand[i];
+		UCardBase* Card = ServerHand[i];
 		if (Card && CachedMulliganCards.Contains(Card->InstanceID))
 		{
 			DroppedCardsLog += FString::Printf(TEXT("[%s] "), *Card->CardID.ToString());
@@ -74,7 +74,7 @@ void UPlayerCardComponent::ExecuteMulliganSwap()
 	{
 		if (ServerDeck.Num() > 0)
 		{
-			ACardBase* NewCard = ServerDeck.Pop();
+			UCardBase* NewCard = ServerDeck.Pop();
 			NewCardsLog += FString::Printf(TEXT("[%s] "), *NewCard->CardID.ToString());
 			ServerHand.Add(NewCard);
 		}
@@ -105,7 +105,7 @@ void UPlayerCardComponent::DrawCard(FName CardIDToDraw, int32 BaseMana)
 		return;
 	}
 
-	ACardBase* DrawnCard = ServerDeck.Pop();
+	UCardBase* DrawnCard = ServerDeck.Pop();
 	ServerHand.Add(DrawnCard);
 
 	DeckCount = ServerDeck.Num();
@@ -132,7 +132,7 @@ void UPlayerCardComponent::Debug_GiveDummyStartingHand()
 	{
 		if (ServerDeck.Num() > 0)
 		{
-			ACardBase* DrawnCard = ServerDeck.Pop();
+			UCardBase* DrawnCard = ServerDeck.Pop();
 			ServerHand.Add(DrawnCard);
 		}
 	}
@@ -155,7 +155,7 @@ void UPlayerCardComponent::CreateTestDeck()
 		const int32 RandIndex = DeckRandomStream.RandRange(1, 25);
 		const FName RowName = FName(*FString::Printf(TEXT("NewRow_%d"), RandIndex));
 
-		ACardBase* NewCard = GenerateCardInstance(RowName);
+		UCardBase* NewCard = GenerateCardInstance(RowName);
 
 		if (NewCard)
 		{
@@ -188,7 +188,7 @@ void UPlayerCardComponent::ShuffleDeck()
 	}
 }
 
-class ACardBase* UPlayerCardComponent::GenerateCardInstance(FName CardRowName)
+UCardBase* UPlayerCardComponent::GenerateCardInstance(FName CardRowName)
 {
 	if (GetOwnerRole() != ROLE_Authority) return nullptr;
 
@@ -204,8 +204,8 @@ class ACardBase* UPlayerCardComponent::GenerateCardInstance(FName CardRowName)
 	FCardData* FoundCardInfo = GI->CardDataTable->FindRow<FCardData>(CardRowName, TEXT("GenerateCard"));
 	if (FoundCardInfo)
 	{
-		// 소유자를 PlayerState(GetOwner)로 설정하여 생성
-		ACardBase* NewCard = NewObject<ACardBase>(GetOwner());
+		// 소유자를 PlayerState(GetOwner)로 설정하여 UObject 생성
+		UCardBase* NewCard = NewObject<UCardBase>(GetOwner());
 		
 		int32 NewInstanceID = GameMode->GenerateNextCardInstanceID(); 
 		int32 BaseMana = 1; 
@@ -227,23 +227,23 @@ class ACardBase* UPlayerCardComponent::GenerateCardInstance(FName CardRowName)
 	return nullptr;
 }
 
-class ACardBase* UPlayerCardComponent::FindCardInstanceByID(int32 InInstanceID) const
+UCardBase* UPlayerCardComponent::FindCardInstanceByID(int32 InInstanceID) const
 {
 	if (GetOwnerRole() != ROLE_Authority || InInstanceID == -1) return nullptr;
 
-	for (ACardBase* Card : ServerHand)
+	for (UCardBase* Card : ServerHand)
 	{
 		if (Card && Card->InstanceID == InInstanceID) return Card;
 	}
-	for (ACardBase* Card : ServerDeck)
+	for (UCardBase* Card : ServerDeck)
 	{
 		if (Card && Card->InstanceID == InInstanceID) return Card;
 	}
-	for (ACardBase* Card : ServerObliterate)
+	for (UCardBase* Card : ServerObliterate)
 	{
 		if (Card && Card->InstanceID == InInstanceID) return Card;
 	}
-	for (ACardBase* Card : ServerExile)
+	for (UCardBase* Card : ServerExile)
 	{
 		if (Card && Card->InstanceID == InInstanceID) return Card;
 	}
@@ -252,13 +252,54 @@ class ACardBase* UPlayerCardComponent::FindCardInstanceByID(int32 InInstanceID) 
 	return nullptr;
 }
 
+bool UPlayerCardComponent::IsCardInHand(int32 InInstanceID) const
+{
+	if (InInstanceID == -1) return false;
+
+	for (const UCardBase* Card : ServerHand)
+	{
+		if (Card && Card->InstanceID == InInstanceID)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+bool UPlayerCardComponent::RemoveCardFromHand(int32 InInstanceID, ECardZone DestinationZone)
+{
+	if (GetOwnerRole() != ROLE_Authority || InInstanceID == -1) return false;
+
+	for (int32 i = 0; i < ServerHand.Num(); ++i)
+	{
+		UCardBase* Card = ServerHand[i];
+		if (Card && Card->InstanceID == InInstanceID)
+		{
+			ServerHand.RemoveAt(i);
+
+			if (DestinationZone == ECardZone::EXILE)
+			{
+				ServerExile.Add(Card);
+			}
+			else if (DestinationZone == ECardZone::OBLITERATE)
+			{
+				ServerObliterate.Add(Card);
+			}
+
+			SyncHandDataToDisplay();
+			return true;
+		}
+	}
+	return false;
+}
+
 void UPlayerCardComponent::SyncHandDataToDisplay()
 {
 	if (GetOwnerRole() != ROLE_Authority) return;
 
 	CurrentHandDisplay.Empty();
 	
-	for (ACardBase* CardInstance : ServerHand)
+	for (UCardBase* CardInstance : ServerHand)
 	{
 		if (IsValid(CardInstance))
 		{

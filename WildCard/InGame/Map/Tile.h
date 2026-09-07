@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -11,7 +11,6 @@ class UTextRenderComponent;
 class AUnitBase;
 class AInGameController;
 struct FCardData;
-class AWildCardBase;
 
 UENUM(BlueprintAble)
 enum class ETileState : uint8
@@ -31,9 +30,12 @@ class WILDCARD_API ATile : public AActor
 public:	
 	ATile();
 
-		// 타일 상태(색상) 변경
+	virtual void BeginPlay() override;
+	virtual void Tick(float DeltaTime) override;
+
+	// 타일 상태(색상) 변경
 	UFUNCTION(BlueprintImplementableEvent)
-	void SetTileState(int32 State);
+	void SetTileState(int State);
 
 	UFUNCTION(BlueprintImplementableEvent)
 	void SetIdxText(int32 InQ, int32 InR);
@@ -45,7 +47,7 @@ public:
 	// 타일에 유닛 소환
 	UFUNCTION(BlueprintCallable)
 	void SpawnUnit(FCardData InCardData, TSubclassOf<AUnitBase> UnitClass, int32 InPlayerCount);
-	
+
 	// 소환 된 유닛을 다른 타일로 유닛 이동
 	UFUNCTION(BlueprintCallable)
 	void MoveToUnit(AUnitBase* Unit, FVector PositionToMove);
@@ -72,36 +74,34 @@ public:
 
 	AUnitBase* GetUnit() const { return PlacedUnit; }
 
-	ETileState GetTileState() const { return TileState; };
+	ETileState GetTileState() const { return TileState; }
 
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Tile")
-	UStaticMeshComponent* StaticMesh;
+	TObjectPtr<UStaticMeshComponent> StaticMesh;
 
 	UPROPERTY(ReplicatedUsing = OnRep_Axial, BlueprintReadOnly, Category = "Tile")
 	FAxial Axial;
 
-	//TODO: dangling pointer 방지 위해 tweakobjectptr로 변경 예정
 	UPROPERTY(ReplicatedUsing = OnRep_MoveUnit, VisibleAnywhere, BlueprintReadOnly, Category = "Tile")
 	TObjectPtr<AUnitBase> PlacedUnit;
 
-	//tileState확인을 위한 임시 Material
+	// tileState 확인을 위한 임시 Material
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Tile")
-	UMaterialInterface* MNone;
+	TObjectPtr<UMaterialInterface> MNone;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Tile")
-	UMaterialInterface* MIdle;
+	TObjectPtr<UMaterialInterface> MIdle;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Tile")
-	UMaterialInterface* MSpawnable;
+	TObjectPtr<UMaterialInterface> MSpawnable;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Tile")
-	UMaterialInterface* MMoveable;
-
+	TObjectPtr<UMaterialInterface> MMoveable;
 
 protected:
-	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Category = "Tile")
+	UPROPERTY(ReplicatedUsing = OnRep_TileState, EditAnywhere, BlueprintReadWrite, Category = "Tile")
 	ETileState TileState;
 
 	UPROPERTY(Replicated, EditAnywhere, BlueprintReadOnly, Category = "Tile")
-	AInGameController* PlayerController;
+	TObjectPtr<AInGameController> PlayerController;
 
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 };
-                     

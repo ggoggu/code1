@@ -12,6 +12,8 @@
 #include "DrawDebugHelpers.h"
 #include "Engine/World.h"
 #include "WildHUDWidget.h"
+#include "Tile.h"
+#include "UnitBase.h"
 #include "ArtifactSelectionViewModel.h"
 #include "MulliganViewModel.h"
 #include "WildHUDViewModel.h"
@@ -141,7 +143,7 @@ void AInGameController::RefreshMulliganUI(const TArray<FWildCardDisplayData>& Ne
 			}
 			else
 			{
-				UE_LOG(LogTemp, Error, TEXT("[Client] ViewModel 연결 실패! UMG 에디터(ViewModels 패널)의 이름이 'WildProtoMulliganViewModel'인지 확인하세요."));
+				UE_LOG(LogTemp, Error, TEXT("[Client] ViewModel 연결 실패! UMG 에디터(ViewModels 패널)의 이름이 'MulliganViewModel'인지 확인하세요."));
 			}
 		}
 	}
@@ -426,51 +428,83 @@ void AInGameController::AttemptPlayCard(UWildCardViewModel* CardViewModel, FVect
 			// (디버그용 시각화) 마우스가 닿은 3D 위치에 구체를 그립니다.
 			DrawDebugSphere(GetWorld(), HitResult.Location, 50.0f, 12, FColor::Green, false, 2.0f);
 
+			//#. 드래그 드롭한 곳이 타일인지 확인 (유닛을 맞춘 경우 해당 유닛의 타일로 대체)
+			ATile* HittedTile = Cast<ATile>(HitResult.GetActor());
+			if (!HittedTile)
+			{
+				if (AUnitBase* HittedUnit = Cast<AUnitBase>(HitResult.GetActor()))
+				{
+					HittedTile = HittedUnit->GetCurrentTile();
+				}
+			}
+
+			if (!IsValid(HittedTile))
+			{
+				UE_LOG(LogTemp, Warning, TEXT("드래그 드롭한 곳은 타일이 아닙니다. (Hit Actor: %s)"),
+					HitResult.GetActor() ? *HitResult.GetActor()->GetName() : TEXT("None"));
+				return;
+			}
+
+			// 현재 게임의 페이즈 상태를 확인
+			AInGameState* GameState = GetWorld()->GetGameState<AInGameState>();
+			if (!GameState) return;
+
+			EWildCardPhase CurrentPhase = GameState->GetCurrentPhase();
+
 			// 4. 서버로 보낼 행동 구조체(FWildActionData) 조립
 			FWildActionData ActionData;
-			
-			// PlayerID 세팅[cite: 3]
+
+			// PlayerID 세팅
 			if (AInGamePlayerState* PS = GetPlayerState<AInGamePlayerState>())
 			{
 				ActionData.PlayerID = PS->GetPlayerId();
 			}
-			
-			// 뷰모델에서 카드의 고유 InstanceID를 가져온다고 가정 (로직에 맞게 수정 필요)
+
+			// 뷰모델에서 카드의 고유 InstanceID를 가져옴
 			ActionData.CardInstanceID = CardViewModel->InstanceID;
-			
-			// 레이캐스트로 맞은 타일/바닥의 위치를 목표 좌표로 설정[cite: 8]
-			//ActionData.TargetGridPos = HitResult.Location;
 
-			// 5. 현재 게임의 페이즈 상태를 확인하여 알맞은 RPC 호출[cite: 5, 6]
-			AInGameState* GameState = GetWorld()->GetGameState<AInGameState>();
-			if (GameState)
+			// 목표 타일 및 그리드 좌표(Axial) 설정
+			ActionData.TargetTile = HittedTile;
+			ActionData.TargetGridPos = FIntPoint(HittedTile->Axial.Q, HittedTile->Axial.R);
+
+			if (CurrentPhase == EWildCardPhase::Action_Private)
 			{
-				EWildCardPhase CurrentPhase = GameState->GetCurrentPhase();
+				// 소환 가능한 타일인지 확인
+				if (HittedTile->GetTileState() != ETileState::Spawnable)
+				{
+					UE_LOG(LogTemp, Warning, TEXT("소환 가능한 타일이 아닙니다: %s (현재 상태: %d)"), *HittedTile->GetName(), (int32)HittedTile->GetTileState());
+					return;
+				}
 
-				if (CurrentPhase == EWildCardPhase::Action_Private)
+				if (HittedTile->HasUnit())
 				{
-					// 비공개 메인 행동 결정 단계: 유닛 소환 등의 메인 액션 전송
-					ActionData.ActionCategory = EWildActionCategory::Main;
-					ActionData.ActionType = EWildActionType::SummonUnit; // (뷰모델 데이터에 따라 동적 할당 필요)[cite: 8]
-					
-					UE_LOG(LogWildPhase, Log, TEXT("[Client] 메인 행동(Action_Private)으로 카드 사용 시도"));
-					CompletePrivateAction(ActionData);
+					UE_LOG(LogTemp, Warning, TEXT("이미 유닛이 존재하는 타일입니다: %s"), *HittedTile->GetName());
+					return;
 				}
-				else if (CurrentPhase == EWildCardPhase::Action_Public)
-				{
-					// 공개 체인 공방 단계: 스펠 등의 서브 액션 전송[cite: 7, 8]
-					ActionData.ActionCategory = EWildActionCategory::Sub;
-					ActionData.ActionType = EWildActionType::CastSpell; // (뷰모델 데이터에 따라 동적 할당 필요)[cite: 8]
-					
-					UE_LOG(LogWildPhase, Log, TEXT("[Client] 체인 서브 행동(Action_Public)으로 카드 사용 시도"));
-					PlayChainCard(ActionData);
-				}
-				else
-				{
-					// 카드를 낼 수 없는 페이즈 (턴 시작, 처리 중, 게임 셋 등)
-					UE_LOG(LogWildPhase, Warning, TEXT("[Client] 현재 카드 조작이 불가능한 페이즈(%s)입니다."), *UEnum::GetValueAsString(CurrentPhase));
-				}
+
+				// 비공개 메인 행동 결정 단계: 유닛 소환 등의 메인 액션 전송
+				ActionData.ActionCategory = EWildActionCategory::Main;
+				ActionData.ActionType = EWildActionType::SummonUnit;
+
+				UE_LOG(LogWildPhase, Log, TEXT("[Client] 메인 행동(Action_Private)으로 카드 사용 시도: 타일 %s"), *HittedTile->GetName());
+				CompletePrivateAction(ActionData);
 			}
+			else if (CurrentPhase == EWildCardPhase::Action_Public)
+			{
+				// 공개 체인 공방 단계: 스펠 등의 서브 액션 전송
+				ActionData.ActionCategory = EWildActionCategory::Sub;
+				ActionData.ActionType = EWildActionType::CastSpell;
+
+				UE_LOG(LogWildPhase, Log, TEXT("[Client] 체인 서브 행동(Action_Public)으로 카드 사용 시도: 타일 %s"), *HittedTile->GetName());
+				PlayChainCard(ActionData);
+			}
+			else
+			{
+				// 카드를 낼 수 없는 페이즈 (턴 시작, 처리 중, 게임 셋 등)
+				UE_LOG(LogWildPhase, Warning, TEXT("[Client] 현재 카드 조작이 불가능한 페이즈(%s)입니다."), *UEnum::GetValueAsString(CurrentPhase));
+			}
+
+			
 		}
 		else
 		{
@@ -536,7 +570,6 @@ void AInGameController::ShowMulliganUI()
 			RefreshMulliganUI((PS->CardComponent)->CurrentHandDisplay);
 		}
 	}
-	
 }
 
 void AInGameController::HideMulliganUI()
@@ -585,7 +618,12 @@ void AInGameController::CreateHUD()
 		OnTimerUpdated(GameState->GetPhaseRemainTime());
 	}
 
-	GetWorld()->GetTimerManager().SetTimer(EnemyStateBindTimer, this, &AInGameController::TryBindEnemyState, 0.5f, true);
+	// 즉시 바인딩 시도, 실패 시에만 타이머로 재시도
+	TryBindEnemyState();
+	if (!EnemyStateBindTimer.IsValid())
+	{
+		GetWorld()->GetTimerManager().SetTimer(EnemyStateBindTimer, this, &AInGameController::TryBindEnemyState, 0.5f, true);
+	}
 }
 
 void AInGameController::ShowGamesetUI()

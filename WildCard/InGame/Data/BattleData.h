@@ -7,7 +7,7 @@
 #include "BattleData.generated.h"
 
 class AUnitBase;
-class ACardBase;
+class UCardBase;
 class ATile;
 
 UENUM(BlueprintType)
@@ -155,10 +155,10 @@ public:
 	FIntPoint TargetGridPos;
 
 	UPROPERTY(BlueprintReadWrite, Category = "Action|On Board")
-	TObjectPtr<ACardBase> TESTSourceUnit;
+	TObjectPtr<UCardBase> TESTSourceUnit;
 
 	UPROPERTY(BlueprintReadWrite, Category = "Action|On Board")
-	TObjectPtr<ACardBase> TESTTargetUnit;
+	TObjectPtr<UCardBase> TESTTargetUnit;
 
 	UPROPERTY(BlueprintReadWrite, Category = "Action|On Board")
 	TObjectPtr<ATile> TargetTile;

@@ -19,7 +19,6 @@ public class WildCard : ModuleRules
 		
 		PublicIncludePaths.AddRange(new string[]
 		{
-			"../Plugins/AdvancedSessions/Source/AdvancedSessions/Classes",
 			"WildCard",
 			"WildCard/InGame/Game",
 			"WildCard/InGame/Interface",
