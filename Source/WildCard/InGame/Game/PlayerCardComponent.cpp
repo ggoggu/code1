@@ -497,6 +497,16 @@ void UPlayerCardComponent::OnRep_CurrentHandDisplay()
 	if (!OwnerPS) return;
 
 	AInGameController* PC = Cast<AInGameController>(OwnerPS->GetPlayerController());
+	if (!PC)
+	{
+		if (APlayerController* FirstPC = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr)
+		{
+			if (FirstPC->GetPlayerState<APlayerState>() == OwnerPS)
+			{
+				PC = Cast<AInGameController>(FirstPC);
+			}
+		}
+	}
 	if (!PC || !PC->IsLocalController()) return;
 
 	AInGameState* GS = GetWorld()->GetGameState<AInGameState>();

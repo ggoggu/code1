@@ -64,8 +64,6 @@ void AInGamePlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 
 void AInGamePlayerState::OnRep_PlayerCount()
 {
-	if(GetPlayerController() == nullptr)
-		return;
 
 	UE_LOG(LogTemp, Warning, TEXT("Client | %s | PlayerCount now: %d"), *GetName(), PlayerCount);
 
