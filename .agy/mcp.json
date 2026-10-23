@@ -1,0 +1,26 @@
+{
+  "mcpServers": {
+    "git": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-git",
+        "--repository",
+        "${workspaceFolder}"
+      ]
+    },
+    "fetch": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-fetch"
+      ]
+    }
+  },
+  "tools": {
+    "ue5_inspect_asset": {
+      "command": "python Scripts/dump_asset_metadata.py --json",
+      "description": "Inspect and dump structured JSON metadata (widgets, viewmodels, notifies, slots, components) for BP, WBP, Animation, or other .uasset editor files."
+    }
+  }
+}

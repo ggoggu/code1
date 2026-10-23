@@ -1,0 +1,7 @@
+{
+  "name": "ue-asset-inspector",
+  "description": "Unreal Engine 5 Asset Metadata Inspection Skill for BP, WBP, and Animation assets.",
+  "commands": [
+    "ue5_inspect_asset"
+  ]
+}
